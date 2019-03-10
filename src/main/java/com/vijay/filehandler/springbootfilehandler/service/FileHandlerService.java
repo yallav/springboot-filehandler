@@ -18,14 +18,10 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsV2Request;
-import com.amazonaws.services.s3.model.ListObjectsV2Result;
-import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.vijay.filehandler.springbootfilehandler.model.Response;
 import com.vijay.filehandler.springbootfilehandler.model.UserData;
 
 @Service
@@ -88,25 +84,29 @@ public class FileHandlerService {
         return "File upload was successful :: "+uploadFileName;
     }
     
-    public String createAndUploadFile(List<UserData> userData) {
+    public Response createAndUploadFile(List<UserData> userData) {
     	
     	String fileToUpload = textToImage.convertTextToImage(userData);
     	File file = new File(fileToUpload);
     	String uploadFileName = file.getName();
+    	Response res = new Response();
     	
     	try {
     		s3client.putObject(
             		new PutObjectRequest(bucketName, uploadFileName, file)
                     .withCannedAcl(CannedAccessControlList.PublicRead));
-    		
+    		res.setMessage("File upload was successful");
             LOGGER.info(">>> Image file was uploaded successfully");
     	}catch(Exception e) {
     		e.printStackTrace();
     		LOGGER.info(">>> Image file upload failed");
-    		return "File upload was failed ";
+    		res.setMessage("Image file upload failed");
+    		res.setFileName("");
+    		return res;
     	}
     	
-    	return "File upload was successful :: "+uploadFileName;
+    	res.setFileName(uploadFileName);
+    	return res;
     }
     
     public ByteArrayOutputStream downloadFile(String objectName) {
