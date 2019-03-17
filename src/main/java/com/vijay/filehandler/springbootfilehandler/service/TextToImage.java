@@ -7,8 +7,10 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -33,6 +35,8 @@ public class TextToImage {
     public String convertTextToImage(List<UserData> userData) {
     	
         int height =0;
+        
+        String newFilePath = localDir+ "Test-"+generatetFileName();
         
         try {
 	        BufferedImage img = new BufferedImage(700,700,BufferedImage.TYPE_INT_ARGB);
@@ -64,13 +68,17 @@ public class TextToImage {
 	        }
 	        
 	        g2d.dispose();
-	        ImageIO.write(img, "png", new File(localDir+ "Text.png"));
+	        ImageIO.write(img, "png", new File(newFilePath));
 	        LOGGER.info(">>> Image is created successfull inside ::"+ localDir);
-	        return localDir+ "Text.png";
+	        return newFilePath;
         } catch (IOException ex) {
             ex.printStackTrace();
             LOGGER.info(">>> ERROR ::: Image is not created");
             return null;
         }
+    }
+    
+    public String generatetFileName() {
+    	return new SimpleDateFormat("yyyy-MM-dd hh-mm-ss'.png'").format(new Date());
     }
 }

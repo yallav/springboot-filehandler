@@ -3,8 +3,11 @@ package com.vijay.filehandler.springbootfilehandler.service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -18,9 +21,12 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.vijay.filehandler.springbootfilehandler.model.Response;
 import com.vijay.filehandler.springbootfilehandler.model.UserData;
 
@@ -31,7 +37,10 @@ public class FileHandlerService {
 	
 	@Autowired
 	private AmazonS3 s3client;
-    
+
+	@Value("${filedownload.dir}")
+    private String localDir;
+
 	@Autowired
 	TextToImage textToImage;
 	
@@ -84,34 +93,32 @@ public class FileHandlerService {
         return "File upload was successful :: "+uploadFileName;
     }
     
-    public Response createAndUploadFile(List<UserData> userData) {
+    public List<Response> createAndUploadFile(List<UserData> userData) {
     	
     	String fileToUpload = textToImage.convertTextToImage(userData);
     	File file = new File(fileToUpload);
     	String uploadFileName = file.getName();
-    	Response res = new Response();
-    	
+    	System.out.println("UploadFileName:::"+uploadFileName);
     	try {
     		s3client.putObject(
             		new PutObjectRequest(bucketName, uploadFileName, file)
                     .withCannedAcl(CannedAccessControlList.PublicRead));
-    		res.setMessage("File upload was successful");
             LOGGER.info(">>> Image file was uploaded successfully");
     	}catch(Exception e) {
     		e.printStackTrace();
     		LOGGER.info(">>> Image file upload failed");
-    		res.setMessage("Image file upload failed");
-    		res.setFileName("");
-    		return res;
+    		return null;
     	}
     	
-    	res.setFileName(uploadFileName);
-    	return res;
+    	return listObjects();
     }
     
-    public ByteArrayOutputStream downloadFile(String objectName) {
+    public Response downloadFile(String objectName) {
     	
     	ByteArrayOutputStream baos = null;
+    	Response res = new Response();
+    	String downloadFileName = localDir+"downloaded_"+objectName;
+    	
     	try {
     		boolean exists = s3client.doesObjectExist(bucketName, objectName);
     		
@@ -121,13 +128,21 @@ public class FileHandlerService {
                 baos = new ByteArrayOutputStream();
                 int len;
                 byte[] buffer = new byte[4096];
+                
                 while ((len = is.read(buffer, 0, buffer.length)) != -1) {
                     baos.write(buffer, 0, len);
                 }
+                
+                OutputStream outputStream = new FileOutputStream(downloadFileName);
+                baos.writeTo(outputStream);
+                res.setMessage("File download was successful");
                 LOGGER.info(">>> ===================== Download File - Completed =====================");
     		}else {
     			LOGGER.info(">>> ERROR ::: Key does not exist");
-    			return null;
+        		res.setMessage("Image file download failed");
+        		res.setFileName("");
+
+    			return res;
     		}
         	
     	}catch (Exception e) {
@@ -139,10 +154,40 @@ public class FileHandlerService {
 			}
     		e.printStackTrace();
     		
+    		res.setMessage("Image file download failed");
+    		res.setFileName("");    		
+    		return null;
+    	}
+
+    	LOGGER.info(">>> ===================== Download File - Finished =====================");
+    	res.setFileName(downloadFileName);
+    	return res;
+    }
+    
+    public List<Response> listObjects(){
+
+    	List<Response> listOfObjects = new ArrayList<Response>();
+    	
+    	try {
+    		ListObjectsV2Request req = new ListObjectsV2Request().withBucketName(bucketName).withMaxKeys(2);
+            ListObjectsV2Result result;
+
+            do {
+                result = s3client.listObjectsV2(req);
+    
+                for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
+                    listOfObjects.add(new Response("",objectSummary.getKey(),objectSummary.getLastModified()));
+                }
+
+                String token = result.getNextContinuationToken();
+                req.setContinuationToken(token);
+            } while (result.isTruncated());
+    	}catch(Exception e) {
+    		e.printStackTrace();
+    		LOGGER.info(">>> No objects found in S3 bucket");
     		return null;
     	}
     	
-    	LOGGER.info(">>> ===================== Download File - Finished =====================");
-        return baos;
+    	return listOfObjects;
     }
 }
